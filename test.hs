@@ -6,43 +6,22 @@ import Control.Concurrent.MVar
 main :: IO ()
 main = do
     initGUI
-    window <- windowNew
-    drawingArea <- drawingAreaNew
-    pixmapVar <- (newEmptyMVar :: IO (MVar Pixmap))
-    set window [containerChild := drawingArea,
-                windowDefaultWidth := 500,
-                windowDefaultHeight := 500]
-    onExposeRect drawingArea (exposeHandler drawingArea pixmapVar)
-    onConfigure drawingArea (configureHandler pixmapVar)
-    widgetShowAll window
-    onDestroy window mainQuit
+    win <- windowNew
+    windowSetTitle win "My Title"
+    win `onDestroy` mainQuit
+ 
+    canvas <- drawingAreaNew
+    canvas `onSizeRequest` return (Requisition 500 500)
+    canvas `onExpose` drawCanvas canvas
+ 
+    containerAdd win canvas
+    widgetShowAll win
     mainGUI
 
-configureHandler :: MVar Pixmap -> Event -> IO Bool
-configureHandler pixmapVar event = do
-    pixmap <- pixmapNew (Nothing :: Maybe Pixmap) 500 500 (Just 24)
-    empty <- isEmptyMVar pixmapVar
-    if empty
-        then putMVar pixmapVar pixmap
-        else do swapMVar pixmapVar pixmap
-                return ()
-    pixmapGc <- gcNew pixmap
-    drawRectangle pixmap pixmapGc True 50 60 200 100
-    return True
-
-exposeHandler :: DrawingArea -> MVar Pixmap -> Rectangle -> IO ()
-exposeHandler drawingArea pixmapVar (Rectangle x y width height) = do
-    pixmap <- readMVar pixmapVar
-    drawWindow <- widgetGetDrawWindow drawingArea
-    style <- widgetGetStyle drawingArea
-    state <- widgetGetState drawingArea
-    fg <- styleGetBackground style state
-    gc <- gcNew drawWindow
-    --gcSetValues gc (GCValues {foreground = fg})
-    pixmap <- readMVar pixmapVar
-    drawDrawable drawWindow
-                 gc
-                 pixmap
-                 x y
-                 x y
-                 width height
+drawCanvas :: DrawingArea -> event -> IO Bool
+drawCanvas canvas _evt = do
+    dw <- widgetGetDrawWindow canvas
+    drawWindowClear dw
+    gc <- gcNew dw
+    drawLine dw gc (10,10) (100,100)
+    return True -- everything is OK
