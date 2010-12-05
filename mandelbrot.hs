@@ -10,8 +10,8 @@ import Control.Concurrent
 red = Color 65535 0 0
 white = Color 65535 65535 65535
 
-windowWidth = 525 :: Int
-windowHeight = 300 :: Int
+windowWidth = 1050 :: Int
+windowHeight = 600 :: Int
 
 main :: IO ()
 main = do
@@ -38,25 +38,30 @@ makeMandelbrotPixbuf canvas pbVar = do
     pbData <- (pixbufGetPixels pb :: IO (PixbufData Int Word8))
     rowStride <- pixbufGetRowstride pb
     putStrLn "calculating..."
-    forM_ [0..(windowWidth-1)] (\c -> do
-        forM_ [0..(windowHeight-1)] (\r ->
+    forM_ [0..(windowHeight-1)] (\r -> do
+        forM_ [0..(windowWidth-1)] (\c -> do
             let v = mandelbrot (c, r) in do
                 writeArray pbData (c*3 + r*rowStride) v
                 writeArray pbData (c*3 + r*rowStride+1) v
                 writeArray pbData (c*3 + r*rowStride+2) v
             )
-        postGUIAsync $ do {drawCanvas canvas pbVar c 0 1 windowHeight; return ()})
+        postGUIAsync $ do {drawCanvas canvas pbVar 0 r windowWidth 1; return ()})
     putStrLn "done"
     return ()
 
 mandelbrot :: (Int, Int) -> Word8
 mandelbrot (x, y) =
-    let p' = p (scaleX x, scaleY y)
+    let coord = (scaleX x, scaleY y)
+        p' = p coord
         iterations = {-# SCC "iterations" #-} take 1000 $ iterate p' (0, 0)
         (left, right) = {-# SCC "span" #-} span (\(x,y) -> x*x + y*y <= 4) iterations
-        in if right == []
+        in if knownZero coord || right == []
               then 0
               else fromIntegral $ max 0 $ 256 - 8*(length left)
+        where knownZero (x, y) =
+                  let q = (x - 0.25)^2 + y^2
+                      in q*(q + (x - 0.25)) < y^2 / 4 ||
+                          (x+1)^2 + y^2 < 1/16
 
 scaleX :: Int -> Double
 scaleX x = (fromIntegral x)/(fromIntegral windowWidth)*3.5 - 2.5
