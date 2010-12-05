@@ -34,25 +34,20 @@ makeMandelbrotPixbuf = do
     pb <- pixbufNew ColorspaceRgb False 8 width height
     pbData <- (pixbufGetPixels pb :: IO (PixbufData Int Word8))
     rowStride <- pixbufGetRowstride pb
-    forM_ mandelbrotSet (\row ->
-        forM_ row (\(r, c, v) -> do
-            writeArray pbData (c*3 + r*rowStride) v
-            writeArray pbData (c*3 + r*rowStride+1) v
-            writeArray pbData (c*3 + r*rowStride+2) v
+    forM_ [0..(width-1)] (\c ->
+        forM_ [0..(height-1)] (\r ->
+            let v = mandelbrot (c, r) in do
+                writeArray pbData (c*3 + r*rowStride) v
+                writeArray pbData (c*3 + r*rowStride+1) v
+                writeArray pbData (c*3 + r*rowStride+2) v
             ))
     return pb
-
-mandelbrotSet :: [[(Int, Int, Word8)]]
-mandelbrotSet =
-    [[(row, col, mandelbrot (col, row))
-        | col <- [0..(width-1)]]
-            | row <- [0..(height-1)]]
 
 mandelbrot :: (Int, Int) -> Word8
 mandelbrot (x, y) =
     let p' = p (scaleX x, scaleY y)
-        iterations = take 1000 $ iterate p' (0, 0)
-        (left, right) = span (\(x,y) -> x*x + y*y <= 2*2) iterations
+        iterations = {-# SCC "iterations" #-} take 1000 $ iterate p' (0, 0)
+        (left, right) = {-# SCC "span" #-} span (\(x,y) -> x*x + y*y <= 4) iterations
         in if right == []
               then 0
               else fromIntegral $ max 0 $ 256 - 8*(length left)
