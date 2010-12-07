@@ -22,7 +22,7 @@ main = do
     canvas `onSizeRequest` return (Requisition windowWidth windowHeight)
     canvas `onExpose` drawCanvasHandler canvas mandelPb
 
-    forkIO $ makeMandelbrotPixbuf canvas mandelPb
+    makeMandelbrotPixbuf canvas mandelPb
 
     containerAdd win canvas
     widgetShowAll win
@@ -30,18 +30,27 @@ main = do
 
 makeMandelbrotPixbuf :: DrawingArea -> MVar Pixbuf -> IO ()
 makeMandelbrotPixbuf canvas pbVar = do
+    ch <- (newChan :: IO (Chan Int))
+    replicateM 2 $ forkIO $ worker canvas pbVar ch
+    forM_ [0..(windowHeight-1)] (\r -> do
+            writeChan ch r)
+    return ()
+
+worker :: DrawingArea -> MVar Pixbuf -> Chan Int -> IO ()
+worker canvas pbVar ch = do
     pb <- readMVar pbVar
     pbData <- (pixbufGetPixels pb :: IO (PixbufData Int Word8))
     rowStride <- pixbufGetRowstride pb
-    forM_ [0..(windowHeight-1)] (\r -> do
+    forever $ do
+        r <- readChan ch
         forM_ [0..(windowWidth-1)] (\c -> do
             let v = mandelbrot (c, r) in do
                 writeArray pbData (c*3 + r*rowStride) v
                 writeArray pbData (c*3 + r*rowStride+1) v
                 writeArray pbData (c*3 + r*rowStride+2) v
             )
-        postGUIAsync $ do {drawCanvas canvas pbVar 0 r windowWidth 1; return ()})
-    return ()
+        postGUIAsync $ do {drawCanvas canvas pbVar 0 r windowWidth 1; return ()}
+
 
 drawCanvasHandler :: DrawingArea -> MVar Pixbuf -> event -> IO Bool
 drawCanvasHandler canvas pbVar _evt = drawCanvas canvas pbVar 0 0 windowWidth windowHeight
